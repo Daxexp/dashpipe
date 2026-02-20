@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DASHPIPE — Streaming Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:      #060810;
+  --s1:      #090c16;
+  --s2:      #0c1020;
+  --border:  #141e30;
+  --border2: #1c2d45;
+  --cyan:    #00e5ff;
+  --green:   #00ff8c;
+  --amber:   #ffd000;
+  --purple:  #c084fc;
+  --red:     #ff3355;
+  --orange:  #ff7722;
+  --text:    #7a9ab8;
+  --bright:  #c8e0ff;
+  --dim:     #253850;
+  --mono:    'Share Tech Mono', monospace;
+  --sans:    'Rajdhani', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg); color:var(--text); font-family:var(--mono); overflow:hidden; }
+
+/* ── SCREENS ── */
+.screen { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:var(--bg); transition:opacity 0.4s; }
+.screen.gone { opacity:0; pointer-events:none; }
+
+/* ── LOGIN SCREEN ── */
+.login-box {
+  width: 380px;
+  background: var(--s1);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.login-head {
+  padding: 28px 28px 20px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.login-logo {
+  font-family: var(--sans);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 4px;
+}
+
+.login-sub {
+  font-size: 0.68rem;
+  color: var(--dim);
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+.login-body { padding: 24px 28px; }
+
+.field { margin-bottom: 16px; }
+
+.field label {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  color: var(--bright);
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  padding: 10px 12px;
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.field input:focus { border-color: var(--cyan); }
+
+.login-btn {
+  width: 100%;
+  background: linear-gradient(135deg, var(--cyan) 0%, #0099bb 100%);
+  border: none;
+  color: #000;
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  margin-top: 4px;
+}
+
+.login-btn:hover { opacity: 0.88; }
+.login-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.login-err {
+  margin-top: 12px;
+  font-size: 0.7rem;
+  color: var(--red);
+  text-align: center;
+  min-height: 18px;
+}
+
+.login-hint {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.64rem;
+  color: var(--dim);
+  line-height: 1.8;
+}
+
+.login-hint span { color: var(--cyan); }
+
+/* ── MAIN APP ── */
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 46px auto 1fr;
+  overflow: hidden;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--s1);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.tlogo {
+  font-family: var(--sans);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  white-space: nowrap;
+}
+
+.tlogo em { color: var(--dim); font-style: normal; font-size: 0.7rem; margin-left: 6px; }
+
+.channel-sel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.channel-sel label { font-size: 0.6rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+
+.channel-sel select {
+  flex: 1;
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 5px 8px;
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+
+.channel-sel select:focus { border-color: var(--cyan); }
+
+.play-btn {
+  background: linear-gradient(135deg, var(--cyan), #009bb5);
+  border: none;
+  color: #000;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 6px 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.play-btn:hover { opacity: 0.88; }
+.play-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.user-badge {
+  font-size: 0.65rem;
+  color: var(--green);
+  border: 1px solid rgba(0,255,140,0.3);
+  padding: 3px 10px;
+  border-radius: 3px;
+  background: rgba(0,255,140,0.06);
+  white-space: nowrap;
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover { color: var(--red); border-color: var(--red); }
+
+/* ── PIPELINE BAR ── */
+.pipeline {
+  background: var(--s1);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.pnode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 88px;
+}
+
+.picon {
+  width: 40px; height: 40px;
+  border: 2px solid var(--border2);
+  border-radius: 8px;
+  background: var(--s2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+
+.plabel { font-size: 0.55rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; text-align: center; line-height: 1.3; }
+
+.pstatus {
+  font-size: 0.55rem;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  transition: all 0.3s;
+}
+
+.parrow {
+  flex: 1;
+  min-width: 24px;
+  height: 2px;
+  background: var(--border2);
+  position: relative;
+  margin-top: -18px;
+  transition: background 0.4s;
+}
+
+.parrow::after {
+  content: '▶';
+  position: absolute;
+  right: -5px; top: -7px;
+  font-size: 0.62rem;
+  color: var(--border2);
+  transition: color 0.4s;
+}
+
+.ppkt {
+  position: absolute;
+  top: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+}
+
+.ppkt.orange { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.ppkt.purple { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+.ppkt.green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+
+@keyframes pktgo { 0%{left:0;opacity:1} 100%{left:calc(100% - 8px);opacity:0.8} }
+.ppkt.go { animation: pktgo 0.65s ease-in-out forwards; }
+
+/* node states */
+.pnode.active .picon  { border-color: var(--cyan); box-shadow: 0 0 14px rgba(0,229,255,0.35); }
+.pnode.done   .picon  { border-color: var(--green); box-shadow: 0 0 10px rgba(0,255,140,0.2); }
+.pnode.err    .picon  { border-color: var(--red); }
+.pnode.active .pstatus { color:var(--cyan); border-color:var(--cyan); background:rgba(0,229,255,0.07); }
+.pnode.done   .pstatus { color:var(--green); border-color:var(--green); background:rgba(0,255,140,0.07); }
+.pnode.err    .pstatus { color:var(--red); border-color:var(--red); }
+.parrow.lit  { background: var(--cyan); } .parrow.lit::after  { color: var(--cyan); }
+.parrow.done { background: var(--green); } .parrow.done::after { color: var(--green); }
+
+/* ── MAIN GRID ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 300px 270px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── PLAYER ── */
+.player-col {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.vwrap {
+  flex: 1;
+  background: #000;
+  position: relative;
+  min-height: 0;
+}
+
+video { width:100%; height:100%; object-fit:contain; display:block; }
+
+.voverlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(6,8,16,0.94);
+  transition: opacity 0.5s;
+}
+
+.voverlay.gone { opacity:0; pointer-events:none; }
+
+@keyframes spin { to { transform:rotate(360deg); } }
+.vspinner {
+  width:44px; height:44px;
+  border:3px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius:50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.vstage { font-size:0.8rem; color:var(--cyan); letter-spacing:1px; }
+.vsub   { font-size:0.68rem; color:var(--dim); }
+.vbig   { font-size:2.4rem; }
+
+.verror {
+  position:absolute; inset:0; display:none;
+  flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  background:rgba(6,8,16,0.96);
+}
+
+.verror.show { display:flex; }
+.verr-msg { color:var(--red); font-size:0.7rem; text-align:center; max-width:280px; line-height:1.7; }
+
+/* Token expiry bar */
+.token-bar-wrap {
+  height: 3px;
+  background: var(--border);
+}
+
+.token-bar {
+  height: 100%;
+  background: var(--green);
+  transition: width 1s linear, background 0.5s;
+}
+
+.pcontrols {
+  background: var(--s1);
+  border-top: 1px solid var(--border);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.qlabel { font-size: 0.58rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+
+.qchips { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.qchip {
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 3px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.qchip.on { border-color:var(--green); color:var(--green); background:rgba(0,255,140,0.07); }
+.qchip:hover:not(.on) { color:var(--text); }
+
+.mstat {
+  font-size: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 7px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.mstat .v { color: var(--bright); }
+
+/* ── STAGES COLUMN ── */
+.stages-col {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.col-hdr {
+  background: var(--s2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.col-hdr span { font-family: var(--sans); font-size: 0.72rem; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: 2px; }
+
+.slist {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+.scard {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.scard.active { border-color: var(--cyan); }
+.scard.done   { border-color: var(--green); }
+.scard.err    { border-color: var(--red); }
+
+.sc-hd {
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sc-num {
+  width:20px; height:20px; border-radius:50%; border:1.5px solid var(--dim);
+  font-size:0.6rem; display:flex; align-items:center; justify-content:center;
+  color:var(--dim); flex-shrink:0; transition:all 0.3s;
+}
+
+.scard.active .sc-num { border-color:var(--cyan); color:var(--cyan); }
+.scard.done   .sc-num { border-color:var(--green); color:var(--green); background:rgba(0,255,140,0.1); }
+.scard.err    .sc-num { border-color:var(--red); color:var(--red); }
+
+.sc-title { font-family:var(--sans); font-weight:600; font-size:0.8rem; color:var(--bright); flex:1; }
+
+.sc-badge {
+  font-size:0.56rem; padding:2px 6px; border-radius:2px;
+  border:1px solid var(--border2); color:var(--dim);
+  transition:all 0.3s;
+}
+
+.scard.active .sc-badge { color:var(--cyan); border-color:var(--cyan); background:rgba(0,229,255,0.08); }
+.scard.done   .sc-badge { color:var(--green); border-color:var(--green); background:rgba(0,255,140,0.07); }
+.scard.err    .sc-badge { color:var(--red); border-color:var(--red); }
+
+.sc-bd { padding:8px 12px; font-size:0.63rem; line-height:2; }
+
+.sline {
+  display:flex; gap:6px; align-items:flex-start;
+  opacity:0; transform:translateY(-3px); transition:all 0.3s;
+}
+
+.sline.show { opacity:1; transform:translateY(0); }
+.sk { color:var(--dim); min-width:78px; flex-shrink:0; }
+.sv { color:var(--bright); word-break:break-all; }
+.sv.cyan   { color:var(--cyan); }
+.sv.green  { color:var(--green); }
+.sv.amber  { color:var(--amber); }
+.sv.purple { color:var(--purple); }
+.sv.red    { color:var(--red); }
+.sv.orange { color:var(--orange); }
+
+/* Code block */
+.sc-code {
+  margin: 6px 0 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.6rem;
+  line-height: 1.8;
+  display: none;
+}
+
+.sc-code.show { display: block; }
+.ck { color: #7dd3fc; }
+.cv { color: #fca5a5; }
+.cs { color: #86efac; }
+.cd { color: var(--dim); }
+
+/* ── NETWORK LOG ── */
+.log-col {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.log-tb {
+  background: var(--s2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.log-tb span { font-size:0.6rem; color:var(--dim); }
+.clr-btn {
+  background:none; border:1px solid var(--border); color:var(--dim);
+  font-family:var(--mono); font-size:0.58rem; padding:2px 7px;
+  border-radius:3px; cursor:pointer; transition:all 0.2s;
+}
+.clr-btn:hover { color:var(--text); border-color:var(--dim); }
+
+.netlog {
+  flex:1; overflow-y:auto;
+  scrollbar-width:thin; scrollbar-color:var(--border2) transparent;
+}
+
+.netlog::-webkit-scrollbar { width:3px; }
+.netlog::-webkit-scrollbar-thumb { background:var(--border2); }
+
+.ne-empty { padding:40px 16px; text-align:center; color:var(--dim); font-size:0.65rem; line-height:2; }
+
+.lrow {
+  padding: 5px 12px;
+  border-bottom: 1px solid rgba(20,30,48,0.7);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: start;
+  animation: lrin 0.2s ease;
+}
+
+@keyframes lrin { from{opacity:0;transform:translateX(5px)} to{opacity:1;transform:none} }
+.lrow:hover { background: rgba(255,255,255,0.02); }
+
+.lbadge {
+  font-size:0.58rem; font-weight:700;
+  padding:1px 5px; border-radius:2px; white-space:nowrap; margin-top:1px;
+}
+.lbadge.MPD    { background:rgba(0,229,255,0.12); color:var(--cyan);   border:1px solid rgba(0,229,255,0.25); }
+.lbadge.INIT   { background:rgba(255,208,0,0.10); color:var(--amber);  border:1px solid rgba(255,208,0,0.25); }
+.lbadge.SEG    { background:rgba(0,255,140,0.08); color:var(--green);  border:1px solid rgba(0,255,140,0.2); }
+.lbadge.LIC    { background:rgba(192,132,252,0.1);color:var(--purple); border:1px solid rgba(192,132,252,0.25); }
+.lbadge.ERR    { background:rgba(255,51,85,0.1);  color:var(--red);    border:1px solid rgba(255,51,85,0.3); }
+.lbadge.PROXY  { background:rgba(255,119,34,0.1); color:var(--orange); border:1px solid rgba(255,119,34,0.25); }
+.lbadge.LOGIN  { background:rgba(0,229,255,0.08); color:var(--cyan);   border:1px solid rgba(0,229,255,0.2); }
+
+.lfname { font-size:0.63rem; color:var(--bright); word-break:break-all; line-height:1.4; }
+.lurldim { font-size:0.57rem; color:var(--dim); word-break:break-all; margin-top:1px; }
+.lsize  { font-size:0.58rem; color:var(--text); display:block; text-align:right; white-space:nowrap; }
+.ltime  { font-size:0.55rem; color:var(--dim); display:block; text-align:right; }
+
+/* ── FOOTER ── */
+.footer {
+  grid-column: 1 / -1;
+  background: var(--s1);
+  border-top: 1px solid var(--border);
+  padding: 5px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.fstat { font-size:0.58rem; display:flex; align-items:center; gap:5px; }
+.fstat .fk { color:var(--dim); }
+.fstat .fv { color:var(--bright); }
+.fstat .fv.cyan   { color:var(--cyan); }
+.fstat .fv.green  { color:var(--green); }
+.fstat .fv.amber  { color:var(--amber); }
+.fstat .fv.purple { color:var(--purple); }
+.fstat .fv.red    { color:var(--red); }
+.fsep { width:1px; height:10px; background:var(--border2); }
+
+/* ── TOKEN MODAL ── */
+.tmodal {
+  position:fixed; inset:0; z-index:50;
+  background: rgba(6,8,16,0.85);
+  display:flex; align-items:center; justify-content:center;
+  display:none;
+}
+
+.tmodal.show { display:flex; }
+
+.tbox {
+  background: var(--s1);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+}
+
+.tbox h3 { font-family:var(--sans); font-weight:700; font-size:1rem; color:var(--cyan); margin-bottom:12px; }
+
+.token-display {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 12px;
+  font-size:0.65rem;
+  line-height:1.9;
+  margin-bottom:12px;
+  word-break:break-all;
+}
+
+.tbox-close {
+  background:none; border:1px solid var(--border2); color:var(--dim);
+  font-family:var(--mono); font-size:0.7rem; padding:6px 16px;
+  border-radius:4px; cursor:pointer; transition:all 0.2s;
+}
+.tbox-close:hover { color:var(--text); border-color:var(--dim); }
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ═══════════════════════════════════════ -->
+<div class="screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-head">
+      <div class="login-logo">DASHPIPE</div>
+      <div class="login-sub">educational streaming demo</div>
+    </div>
+    <div class="login-body">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="uname" value="demo" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="upass" value="demo123"/>
+      </div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">LOGIN → GET SESSION TOKEN</button>
+      <div class="login-err" id="loginErr"></div>
+      <div class="login-hint">
+        Accounts: <span>demo/demo123</span> · <span>test/test456</span> · <span>admin/admin789</span><br>
+        Login issues a real session token. Token is used to<br>
+        generate the short-lived CDN token for each stream load.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ════════════════════════════════════════════ -->
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="tlogo">DASHPIPE <em>// live demo</em></div>
+    <div class="channel-sel">
+      <label>Channel:</label>
+      <select id="chanSel">
+        <option value="Ch120">Ch120 — Angel One (ClearKey DRM)</option>
+        <option value="Ch121">Ch121 — Angel One HD (ClearKey DRM)</option>
+        <option value="Ch200">Ch200 — Angel One (No DRM)</option>
+      </select>
+    </div>
+    <button class="play-btn" id="playBtn" onclick="startStream()">▶ LOAD STREAM</button>
+    <div class="user-badge" id="userBadge"></div>
+    <button class="logout-btn" onclick="doLogout()">logout</button>
+  </div>
+
+  <!-- Pipeline -->
+  <div class="pipeline">
+
+    <div class="pnode" id="pn-browser">
+      <div class="picon">🌐</div>
+      <div class="plabel">Browser</div>
+      <div class="pstatus" id="ps-browser">idle</div>
+    </div>
+
+    <div class="parrow" id="pa1"><div class="ppkt" id="pp1a"></div><div class="ppkt" id="pp1b"></div></div>
+
+    <div class="pnode" id="pn-proxy">
+      <div class="picon">🔀</div>
+      <div class="plabel">Proxy<br>Server</div>
+      <div class="pstatus" id="ps-proxy">idle</div>
+    </div>
+
+    <div class="parrow" id="pa2"><div class="ppkt orange" id="pp2a"></div><div class="ppkt orange" id="pp2b"></div></div>
+
+    <div class="pnode" id="pn-cdn">
+      <div class="picon">📡</div>
+      <div class="plabel">CDN<br>Server</div>
+      <div class="pstatus" id="ps-cdn">idle</div>
+    </div>
+
+    <div class="parrow" id="pa3"><div class="ppkt purple" id="pp3a"></div><div class="ppkt purple" id="pp3b"></div></div>
+
+    <div class="pnode" id="pn-drm">
+      <div class="picon">🔑</div>
+      <div class="plabel">DRM<br>License</div>
+      <div class="pstatus" id="ps-drm">idle</div>
+    </div>
+
+    <div class="parrow" id="pa4"><div class="ppkt green" id="pp4a"></div><div class="ppkt green" id="pp4b"></div></div>
+
+    <div class="pnode" id="pn-dec">
+      <div class="picon">🎬</div>
+      <div class="plabel">Decrypt<br>+ Play</div>
+      <div class="pstatus" id="ps-dec">idle</div>
+    </div>
+
+  </div>
+
+  <!-- Main grid -->
+  <div class="main">
+
+    <!-- Player -->
+    <div class="player-col">
+      <div class="vwrap">
+        <video id="vid" controls playsinline></video>
+
+        <div class="voverlay" id="vov">
+          <div class="vbig" id="vibig">📺</div>
+          <div class="vspinner" id="visp" style="display:none"></div>
+          <div class="vstage" id="vstage">Select a channel and press Load</div>
+          <div class="vsub"  id="vsub">All 4 stages will be visualized live</div>
+        </div>
+
+        <div class="verror" id="verr">
+          <span style="font-size:1.8rem">⚠</span>
+          <div class="verr-msg" id="verrmsg">Error loading stream.</div>
+          <button style="margin-top:8px;background:none;border:1px solid var(--border2);color:var(--dim);font-family:var(--mono);font-size:0.65rem;padding:5px 14px;border-radius:3px;cursor:pointer;" onclick="document.getElementById('verr').classList.remove('show')">dismiss</button>
+        </div>
+      </div>
+
+      <!-- CDN token countdown bar -->
+      <div class="token-bar-wrap" title="CDN token expiry (60s)">
+        <div class="token-bar" id="tokenBar" style="width:0%"></div>
+      </div>
+
+      <div class="pcontrols">
+        <span class="qlabel">Quality:</span>
+        <div class="qchips" id="qchips"><span class="qchip on">Auto</span></div>
+        <div class="mstat">Buf <span class="v" id="fBuf">—</span></div>
+        <div class="mstat">BW <span class="v" id="fBw">—</span></div>
+        <div class="mstat">CDN <span class="v" id="fCdn">—</span></div>
+        <div class="mstat" id="tokenTimerStat" style="cursor:pointer" onclick="showTokenModal()" title="Click to see token details">
+          Token <span class="v" id="fTok">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stages column -->
+    <div class="stages-col">
+      <div class="col-hdr">
+        <span>Pipeline Stages</span>
+        <span id="elapsedT" style="color:var(--cyan);font-size:0.68rem;"></span>
+      </div>
+      <div class="slist">
+
+        <!-- Stage 1 -->
+        <div class="scard" id="sc1">
+          <div class="sc-hd">
+            <div class="sc-num">1</div>
+            <div class="sc-title">Proxy Auth</div>
+            <div class="sc-badge" id="sb1">waiting</div>
+          </div>
+          <div class="sc-bd">
+            <div class="sline" id="s1a"><span class="sk">endpoint</span><span class="sv cyan" id="s1ep">/proxy/Ch120</span></div>
+            <div class="sline" id="s1b"><span class="sk">session_tok</span><span class="sv" id="s1tok">—</span></div>
+            <div class="sline" id="s1c"><span class="sk">ip_check</span><span class="sv green">✓ 127.0.0.1</span></div>
+            <div class="sline" id="s1d"><span class="sk">expiry</span><span class="sv green" id="s1exp">—</span></div>
+            <div class="sline" id="s1e"><span class="sk">cdn_server</span><span class="sv amber" id="s1cdn">—</span></div>
+            <div class="sline" id="s1f"><span class="sk">response</span><span class="sv orange">302 → CDN URL</span></div>
+          </div>
+        </div>
+
+        <!-- Stage 2 -->
+        <div class="scard" id="sc2">
+          <div class="sc-hd">
+            <div class="sc-num">2</div>
+            <div class="sc-title">Manifest (MPD)</div>
+            <div class="sc-badge" id="sb2">waiting</div>
+          </div>
+          <div class="sc-bd">
+            <div class="sline" id="s2a"><span class="sk">cdn_token</span><span class="sv cyan" id="s2tok">—</span></div>
+            <div class="sline" id="s2b"><span class="sk">cdn_server</span><span class="sv amber" id="s2cdn">—</span></div>
+            <div class="sline" id="s2c"><span class="sk">token_ttl</span><span class="sv red">60 seconds only!</span></div>
+            <div class="sline" id="s2d"><span class="sk">status</span><span class="sv green">200 OK</span></div>
+            <div class="sline" id="s2e"><span class="sk">qualities</span><span class="sv" id="s2q">parsing...</span></div>
+            <div class="sline" id="s2f"><span class="sk">drm_type</span><span class="sv purple" id="s2drm">—</span></div>
+          </div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="scard" id="sc3">
+          <div class="sc-hd">
+            <div class="sc-num">3</div>
+            <div class="sc-title">DRM License</div>
+            <div class="sc-badge" id="sb3">waiting</div>
+          </div>
+          <div class="sc-bd">
+            <div class="sline" id="s3a"><span class="sk">scheme</span><span class="sv purple">ClearKey (W3C)</span></div>
+            <div class="sline" id="s3b"><span class="sk">algo</span><span class="sv">AES-128-CTR</span></div>
+            <div class="sline" id="s3c"><span class="sk">key_id</span><span class="sv amber">9ab40503-e44b…</span></div>
+            <div class="sline" id="s3d"><span class="sk">license_url</span><span class="sv cyan">your-app.onrender.com/license</span></div>
+            <div class="sline" id="s3e"><span class="sk">key_status</span><span class="sv green" id="s3stat">—</span></div>
+            <div class="sc-code" id="s3code">
+<span class="cd">// W3C ClearKey response from /license:</span>
+{
+  <span class="ck">"keys"</span>: [{
+    <span class="ck">"kty"</span>: <span class="cs">"oct"</span>,
+    <span class="ck">"kid"</span>: <span class="cs">"<span id="codekid">m0AF...</span>"</span>,
+    <span class="ck">"k"</span>:   <span class="cs">"<span id="codekey">FmY0...</span>"</span>
+  }],
+  <span class="ck">"type"</span>: <span class="cs">"temporary"</span>
+}
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="scard" id="sc4">
+          <div class="sc-hd">
+            <div class="sc-num">4</div>
+            <div class="sc-title">Segments + Decrypt</div>
+            <div class="sc-badge" id="sb4">waiting</div>
+          </div>
+          <div class="sc-bd">
+            <div class="sline" id="s4a"><span class="sk">pattern</span><span class="sv cyan">v-720p-$N$.m4s</span></div>
+            <div class="sline" id="s4b"><span class="sk">seg_dur</span><span class="sv">~2.8 seconds</span></div>
+            <div class="sline" id="s4c"><span class="sk">quality</span><span class="sv green" id="s4q">—</span></div>
+            <div class="sline" id="s4d"><span class="sk">loaded</span><span class="sv amber" id="s4n">0 segs</span></div>
+            <div class="sline" id="s4e"><span class="sk">buffer</span><span class="sv green" id="s4b2">0s</span></div>
+            <div class="sline" id="s4f"><span class="sk">decrypt</span><span class="sv">AES-CTR (in-browser)</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Network Log -->
+    <div class="log-col">
+      <div class="log-tb">
+        <span id="reqCount">0 requests · 0 B</span>
+        <button class="clr-btn" onclick="clearLog()">✕</button>
+      </div>
+      <div class="netlog" id="netLog">
+        <div class="ne-empty">Network log.<br><br>Every request between<br>browser ↔ proxy ↔ CDN<br>↔ DRM will appear here.</div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="fstat"><span class="fk">State:</span><span class="fv cyan" id="fState">idle</span></div>
+    <div class="fsep"></div>
+    <div class="fstat"><span class="fk">DRM:</span><span class="fv purple" id="fDrm">—</span></div>
+    <div class="fsep"></div>
+    <div class="fstat"><span class="fk">Codec:</span><span class="fv amber" id="fCodec">—</span></div>
+    <div class="fsep"></div>
+    <div class="fstat"><span class="fk">Resolution:</span><span class="fv" id="fRes">—</span></div>
+    <div class="fsep"></div>
+    <div class="fstat"><span class="fk">Segments:</span><span class="fv green" id="fSegs">0</span></div>
+    <div class="fsep"></div>
+    <div class="fstat"><span class="fk">Token expires:</span><span class="fv red" id="fTokExp">—</span></div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Token modal -->
+<div class="tmodal" id="tokenModal">
+  <div class="tbox">
+    <h3>🔐 Token Details</h3>
+    <div class="token-display" id="tokenDisplay">—</div>
+    <button class="tbox-close" onclick="document.getElementById('tokenModal').classList.remove('show')">Close</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let sessionToken  = null;
+let cdnTokenVal   = null;
+let cdnExpiry     = null;
+let player        = null;
+let statsTimer    = null;
+let elTimer       = null;
+let tokenCountdown = null;
+let segCount      = 0;
+let bytesTotal    = 0;
+let reqTotal      = 0;
+let startTs       = 0;
+let currentCdn    = '—';
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ════════════════════════════════════════════════════════
+// UTIL
+// ════════════════════════════════════════════════════════
+function fmtBytes(b) {
+  if (!b || b === 0) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+function getFilename(url) {
+  try { const u=new URL(url); const p=u.pathname.split('/'); return p[p.length-1]||url; }
+  catch { return url.split('/').pop()||url; }
+}
+
+function getBase(url) {
+  try { const u=new URL(url); return u.origin+u.pathname.split('/').slice(0,-1).join('/'); }
+  catch { return ''; }
+}
+
+function reqBadge(url, shakaType) {
+  if (!shakaType && url.includes('/login')) return 'LOGIN';
+  if (!shakaType && url.includes('/proxy')) return 'PROXY';
+  if (shakaType === shaka.net.NetworkingEngine.RequestType.MANIFEST) return 'MPD';
+  if (shakaType === shaka.net.NetworkingEngine.RequestType.LICENSE)  return 'LIC';
+  const f = url.toLowerCase();
+  if (f.includes('init') || f.includes('initialization')) return 'INIT';
+  return 'SEG';
+}
+
+// ════════════════════════════════════════════════════════
+// PIPELINE NODE STATE
+// ════════════════════════════════════════════════════════
+function pnode(id, state, txt) {
+  const el = document.getElementById('pn-'+id);
+  el.className = 'pnode ' + (state||'');
+  document.getElementById('ps-'+id).textContent = txt;
+}
+
+function parrow(idx, cls) {
+  document.getElementById('pa'+idx).className = 'parrow ' + cls;
+}
+
+async function pkt(id, cls) {
+  const el = document.getElementById(id);
+  el.className = 'ppkt ' + cls;
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.classList.add('go');
+  await sleep(700);
+  el.classList.remove('go');
+  el.style.opacity = '0';
+}
+
+// ════════════════════════════════════════════════════════
+// STAGE CARD STATE
+// ════════════════════════════════════════════════════════
+function scard(n, state, badge) {
+  document.getElementById('sc'+n).className = 'scard '+(state||'');
+  document.getElementById('sb'+n).textContent = badge;
+}
+
+async function showLines(ids, delay=220) {
+  for (const id of ids) { await sleep(delay); const el=document.getElementById(id); if(el) el.classList.add('show'); }
+}
+
+// ════════════════════════════════════════════════════════
+// NETWORK LOG
+// ════════════════════════════════════════════════════════
+function clearLog() {
+  reqTotal = 0; bytesTotal = 0;
+  document.getElementById('reqCount').textContent = '0 requests · 0 B';
+  document.getElementById('netLog').innerHTML = '<div class="ne-empty">Log cleared.</div>';
+}
+
+function addLog(type, url, bytes, ms) {
+  reqTotal++;
+  bytesTotal += (bytes||0);
+  document.getElementById('reqCount').textContent =
+    `${reqTotal} req · ${fmtBytes(bytesTotal)}`;
+
+  const log = document.getElementById('netLog');
+  const empty = log.querySelector('.ne-empty');
+  if (empty) empty.remove();
+
+  const fname = getFilename(url);
+  const base  = getBase(url);
+
+  const row = document.createElement('div');
+  row.className = 'lrow';
+  row.innerHTML = `
+    <span class="lbadge ${type}">${type}</span>
+    <div>
+      <div class="lfname">${fname}</div>
+      <div class="lurldim">${base}</div>
+    </div>
+    <div>
+      <span class="lsize">${fmtBytes(bytes)}</span>
+      <span class="ltime">${ms?ms+'ms':''}</span>
+    </div>
+  `;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════
+// CDN TOKEN COUNTDOWN BAR
+// ════════════════════════════════════════════════════════
+function startTokenCountdown(expiry) {
+  cdnExpiry = expiry;
+  if (tokenCountdown) clearInterval(tokenCountdown);
+  tokenCountdown = setInterval(() => {
+    const now = Date.now();
+    const remaining = Math.max(0, expiry - now);
+    const pct = (remaining / 60000) * 100;
+    const bar = document.getElementById('tokenBar');
+    bar.style.width = pct + '%';
+    bar.style.background = pct > 40 ? 'var(--green)' : pct > 15 ? 'var(--amber)' : 'var(--red)';
+    document.getElementById('fTokExp').textContent = Math.round(remaining/1000) + 's';
+    document.getElementById('fTok').textContent    = Math.round(remaining/1000) + 's';
+    if (remaining === 0) clearInterval(tokenCountdown);
+  }, 500);
+}
+
+// ════════════════════════════════════════════════════════
+// TOKEN MODAL
+// ════════════════════════════════════════════════════════
+function showTokenModal() {
+  if (!sessionToken) return;
+  const remaining = cdnExpiry ? Math.max(0, Math.round((cdnExpiry - Date.now())/1000)) : '?';
+  document.getElementById('tokenDisplay').innerHTML = `
+    <div style="color:var(--dim);font-size:0.58rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Session Token (1 hour)</div>
+    <div style="color:var(--cyan);word-break:break-all;margin-bottom:12px;">${sessionToken}</div>
+    <div style="color:var(--dim);font-size:0.58rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CDN Token (60 seconds)</div>
+    <div style="color:var(--orange);word-break:break-all;margin-bottom:12px;">${cdnTokenVal||'not yet generated'}</div>
+    <div style="color:var(--dim);font-size:0.58rem;">CDN Token expires in: <span style="color:var(--red)">${remaining}s</span></div>
+    <div style="color:var(--dim);font-size:0.58rem;margin-top:4px;">Every time you click Load, the server generates a<br>NEW CDN token with a fresh 60-second expiry.</div>
+  `;
+  document.getElementById('tokenModal').classList.add('show');
+}
+
+// ════════════════════════════════════════════════════════
+// QUALITY CHIPS
+// ════════════════════════════════════════════════════════
+function buildChips() {
+  if (!player) return;
+  const tracks = player.getVariantTracks();
+  const seen = new Set();
+  const uniq = tracks.filter(t=>{ if(!t.height||seen.has(t.height))return false; seen.add(t.height); return true; })
+                      .sort((a,b)=>b.height-a.height);
+
+  const wrap = document.getElementById('qchips');
+  wrap.innerHTML = '';
+
+  const auto = document.createElement('span');
+  auto.className='qchip on'; auto.textContent='Auto';
+  auto.onclick = () => {
+    player.configure({ abr:{ enabled:true } });
+    wrap.querySelectorAll('.qchip').forEach(c=>c.classList.remove('on'));
+    auto.classList.add('on');
+  };
+  wrap.appendChild(auto);
+
+  uniq.forEach(t => {
+    const c = document.createElement('span');
+    c.className='qchip';
+    c.textContent=t.height+'p';
+    c.title = t.videoBandwidth ? Math.round(t.videoBandwidth/1000)+' kbps' : '';
+    c.onclick = () => {
+      player.configure({ abr:{ enabled:false } });
+      const m = tracks.find(tr=>tr.height===t.height);
+      if (m) player.selectVariantTrack(m, true);
+      wrap.querySelectorAll('.qchip').forEach(cc=>cc.classList.remove('on'));
+      c.classList.add('on');
+    };
+    wrap.appendChild(c);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// STATS LOOP
+// ════════════════════════════════════════════════════════
+function startStats() {
+  if (statsTimer) clearInterval(statsTimer);
+  statsTimer = setInterval(() => {
+    if (!player) return;
+    const st  = player.getStats();
+    const vid = document.getElementById('vid');
+    const trk = player.getVariantTracks().find(t=>t.active);
+
+    let buf = 0;
+    if (vid.buffered.length > 0)
+      buf = (vid.buffered.end(vid.buffered.length-1) - vid.currentTime).toFixed(1);
+
+    document.getElementById('fBuf').textContent  = buf+'s';
+    document.getElementById('fBw').textContent   = st.estimatedBandwidth ? (st.estimatedBandwidth/1e6).toFixed(2)+' Mbps' : '—';
+    document.getElementById('fCodec').textContent = trk?.videoCodec ?? '—';
+    document.getElementById('fRes').textContent   = trk ? `${trk.width}×${trk.height}` : '—';
+
+    // Stage 4 live update
+    document.getElementById('s4b2').textContent = buf+'s';
+    document.getElementById('s4q').textContent  = trk ? `${trk.height}p · ${Math.round((trk.videoBandwidth||0)/1000)} kbps` : '—';
+    document.getElementById('s4n').textContent  = segCount+' segs';
+    document.getElementById('fSegs').textContent = segCount;
+  }, 1000);
+}
+
+// ════════════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════════════
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginErr');
+  const u   = document.getElementById('uname').value.trim();
+  const p   = document.getElementById('upass').value;
+
+  btn.disabled = true; err.textContent = '';
+  addLog('LOGIN', window.location.origin + '/login', 0, null);
+
+  try {
+    const res  = await fetch('/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username:u, password:p })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      err.textContent = data.message || 'Login failed';
+      btn.disabled = false;
+      return;
+    }
+
+    sessionToken = data.token;
+    addLog('LOGIN', `session token issued: ${sessionToken.slice(0,16)}...`, 256, 42);
+
+    document.getElementById('userBadge').textContent = `✓ ${data.userId}`;
+    document.getElementById('loginScreen').classList.add('gone');
+
+  } catch(e) {
+    err.textContent = 'Cannot connect to server. Is server.js running?';
+    btn.disabled = false;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// LOGOUT
+// ════════════════════════════════════════════════════════
+async function doLogout() {
+  if (sessionToken) {
+    await fetch('/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: sessionToken }) });
+  }
+  sessionToken = null;
+  if (player) { await player.destroy(); player = null; }
+  if (statsTimer)   clearInterval(statsTimer);
+  if (elTimer)      clearInterval(elTimer);
+  if (tokenCountdown) clearInterval(tokenCountdown);
+  document.getElementById('loginScreen').classList.remove('gone');
+  document.getElementById('loginBtn').disabled = false;
+  document.getElementById('loginErr').textContent = '';
+}
+
+// ════════════════════════════════════════════════════════
+// MAIN STREAM PIPELINE
+// ════════════════════════════════════════════════════════
+async function startStream() {
+  if (!sessionToken) { alert('Please login first.'); return; }
+
+  const channel = document.getElementById('chanSel').value;
+  const btn = document.getElementById('playBtn');
+  btn.disabled = true;
+
+  // Reset UI
+  if (player) { await player.destroy(); player = null; }
+  if (statsTimer) clearInterval(statsTimer);
+  if (elTimer) clearInterval(elTimer);
+  if (tokenCountdown) clearInterval(tokenCountdown);
+
+  segCount = 0; bytesTotal = 0; reqTotal = 0;
+  clearLog();
+
+  [1,2,3,4].forEach(n => scard(n,'','waiting'));
+  document.querySelectorAll('.sline').forEach(l => l.classList.remove('show'));
+  document.getElementById('s3code').classList.remove('show');
+  ['browser','proxy','cdn','drm','dec'].forEach(n => pnode(n,'','idle'));
+  [1,2,3,4].forEach(i => parrow(i,''));
+
+  document.getElementById('fState').textContent   = 'loading';
+  document.getElementById('fDrm').textContent     = '—';
+  document.getElementById('fCodec').textContent   = '—';
+  document.getElementById('fRes').textContent     = '—';
+  document.getElementById('fSegs').textContent    = '0';
+  document.getElementById('fTokExp').textContent  = '—';
+  document.getElementById('tokenBar').style.width = '0%';
+  document.getElementById('qchips').innerHTML     = '<span class="qchip on">Auto</span>';
+
+  // Video overlay
+  const vov = document.getElementById('vov');
+  vov.classList.remove('gone');
+  document.getElementById('vibig').style.display = 'block';
+  document.getElementById('visp').style.display  = 'none';
+  document.getElementById('verr').classList.remove('show');
+  document.getElementById('vstage').textContent  = 'Stage 1 — Proxy Auth';
+  document.getElementById('vsub').textContent    = channel + ' · checking session...';
+
+  startTs = Date.now();
+  elTimer = setInterval(() => {
+    document.getElementById('elapsedT').textContent = ((Date.now()-startTs)/1000).toFixed(1)+'s';
+  }, 100);
+
+  // ── STAGE 1: PROXY REQUEST ──────────────────────────────
+  scard(1, 'active', 'requesting');
+  pnode('browser','active','requesting');
+
+  const proxyUrl = `/proxy/${channel}?e=.mpd&token=${sessionToken}`;
+  document.getElementById('s1ep').textContent  = `/proxy/${channel}`;
+  document.getElementById('s1tok').textContent = sessionToken.slice(0,12)+'...';
+
+  await showLines(['s1a','s1b'], 250);
+  await pkt('pp1a','');
+  parrow(1,'lit');
+  pnode('proxy','active','validating');
+
+  await showLines(['s1c','s1d'], 300);
+
+  // Actually call the proxy!
+  addLog('PROXY', window.location.origin + proxyUrl, 0, null);
+  let manifestUrl, cdnToken, cdnServer;
+
+  try {
+    const t0 = Date.now();
+    // Follow the redirect manually to capture CDN URL
+    const res = await fetch(proxyUrl, { redirect: 'follow' });
+    const proxyMs = Date.now() - t0;
+
+    if (!res.ok && res.status !== 200) throw new Error(`Proxy returned ${res.status}`);
+
+    // The final URL after redirect is the CDN manifest URL
+    manifestUrl = res.url;
+
+    // Extract CDN token and server from the URL
+    const urlParts = manifestUrl.split('/cdn/')[1]?.split('/')[0];
+    cdnToken = urlParts ? decodeURIComponent(urlParts) : 'unknown';
+    cdnTokenVal = cdnToken;
+
+    // Parse CDN server from token prefix (1ab@ → cs?)
+    // We'll get this from the response headers or just show the token
+    const match = cdnToken.match(/^(1a[ab])@/);
+
+    document.getElementById('s1exp').textContent = 'valid (1h session)';
+    document.getElementById('s1cdn').textContent = `bpcdn${['cs5','cs6','cs7','cs8'][Math.floor(Math.random()*4)]}.example.lk`;
+    document.getElementById('fCdn').textContent  = cdnToken.slice(0,8)+'...';
+
+    addLog('PROXY', manifestUrl, 0, proxyMs);
+    await showLines(['s1e','s1f'], 200);
+
+  } catch(e) {
+    scard(1, 'err', 'failed');
+    pnode('proxy','err','auth failed');
+    document.getElementById('verr').classList.add('show');
+    document.getElementById('verrmsg').textContent = `Stage 1 failed: ${e.message}\nMake sure the server is running!`;
+    vov.classList.add('gone');
+    clearInterval(elTimer); btn.disabled=false; return;
+  }
+
+  await pkt('pp1b','');
+  parrow(1,'done');
+  pnode('browser','done','redirected');
+  pnode('proxy','done','302 sent');
+  scard(1,'done','302 ✓');
+
+  // Start CDN token countdown
+  startTokenCountdown(Date.now() + 60000);
+
+  // ── STAGE 2: MANIFEST FETCH ─────────────────────────────
+  document.getElementById('vstage').textContent = 'Stage 2 — Fetching Manifest';
+  document.getElementById('vibig').style.display = 'none';
+  document.getElementById('visp').style.display  = 'block';
+  scard(2,'active','fetching');
+  pnode('cdn','active','serving mpd');
+
+  await pkt('pp2a','orange');
+  parrow(2,'lit');
+
+  document.getElementById('s2tok').textContent = cdnToken.slice(0,14)+'...';
+  await showLines(['s2a','s2b','s2c','s2d'], 220);
+
+  // ── STAGE 3: DRM LICENSE ─────────────────────────────────
+  document.getElementById('vstage').textContent = 'Stage 3 — DRM License';
+  scard(3,'active','negotiating');
+
+  await pkt('pp3a','purple');
+  parrow(3,'lit');
+  pnode('drm','active','issuing key');
+
+  document.getElementById('s3stat').textContent = 'requesting...';
+  await showLines(['s3a','s3b','s3c','s3d'], 250);
+
+  // ── SHAKA PLAYER ─────────────────────────────────────────
+  shaka.polyfill.installAll();
+  const vid = document.getElementById('vid');
+  player = new shaka.Player();
+  await player.attach(vid);
+
+  // Configure ClearKey DRM to use our own license server
+  const useDrm = !channel.includes('200');
+  if (useDrm) {
+    player.configure({
+      drm: {
+        servers: {
+          'org.w3.clearkey': window.location.origin + '/license'
+        }
+      }
+    });
+    document.getElementById('fDrm').textContent  = 'ClearKey';
+    document.getElementById('s2drm').textContent = 'ClearKey (AES-128-CTR)';
+  } else {
+    document.getElementById('fDrm').textContent  = 'None';
+    document.getElementById('s2drm').textContent = 'None (clear stream)';
+  }
+
+  // Network hooks — intercept all requests
+  const net = player.getNetworkingEngine();
+
+  net.registerRequestFilter((type, req) => {
+    req._t0 = Date.now();
+    // If it's a license request, log it
+    if (type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
+      addLog('LIC', req.uris[0], 0, null);
+    }
+  });
+
+  net.registerResponseFilter((type, res) => {
+    const url   = res.uri;
+    const bytes = res.data?.byteLength || 0;
+    const ms    = res.timeMs ? Math.round(res.timeMs) : null;
+    const badge = reqBadge(url, type);
+
+    addLog(badge, url, bytes, ms);
+
+    if (badge === 'SEG') {
+      segCount++;
+      document.getElementById('s4n').textContent  = segCount+' segs';
+      document.getElementById('fSegs').textContent = segCount;
+    }
+  });
+
+  player.addEventListener('error', e => {
+    addLog('ERR', e.detail?.message || 'Shaka error', 0, null);
+    console.error('Shaka error:', e.detail);
+  });
+
+  // When DRM key is received — update Stage 3
+  vid.addEventListener('encrypted', async () => {
+    document.getElementById('s3stat').textContent = 'key received ✓';
+    // Fetch license manually to show the response in the UI
+    try {
+      const licRes = await fetch('/license', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:'{}'
+      });
+      const licData = await licRes.json();
+      if (licData.keys && licData.keys[0]) {
+        document.getElementById('codekid').textContent = licData.keys[0].kid;
+        document.getElementById('codekey').textContent = licData.keys[0].k;
+      }
+    } catch(e) {}
+
+    document.getElementById('s3code').classList.add('show');
+    await showLines(['s3e'], 100);
+    await pkt('pp3b','purple');
+    parrow(3,'done');
+    pnode('drm','done','key sent');
+    scard(3,'done','key ✓');
+  });
+
+  // Load!
+  try {
+    await player.load(manifestUrl);
+
+    // Stage 2 done
+    const tracks = player.getVariantTracks();
+    const heights = [...new Set(tracks.map(t=>t.height).filter(Boolean))].sort((a,b)=>b-a);
+    document.getElementById('s2q').textContent = heights.map(h=>h+'p').join(' / ') || 'parsed';
+    await showLines(['s2e','s2f'], 150);
+    await pkt('pp2b','orange');
+    parrow(2,'done');
+    pnode('cdn','done','mpd served');
+    scard(2,'done','200 ✓');
+
+    // Stage 4: Segments start
+    document.getElementById('vstage').textContent = 'Stage 4 — Segment Playback';
+    scard(4,'active','downloading');
+    await showLines(['s4a','s4b','s4c','s4d','s4e','s4f'], 150);
+
+    await pkt('pp4a','green');
+    parrow(4,'lit');
+    pnode('dec','active','decrypting');
+    await sleep(500);
+    await pkt('pp4b','green');
+    parrow(4,'done');
+    pnode('dec','done','playing ▶');
+    scard(4,'done','live ▶');
+
+    // Fade overlay
+    vov.classList.add('gone');
+    document.getElementById('fState').textContent = 'playing';
+
+    // If no encrypted event fires (clear stream), finalize stage 3
+    if (!useDrm) {
+      scard(3,'done','skipped');
+      document.getElementById('s3stat').textContent = 'not required';
+      await showLines(['s3e'], 100);
+    }
+
+    setTimeout(buildChips, 800);
+    startStats();
+    vid.play().catch(()=>{});
+
+    clearInterval(elTimer);
+    document.getElementById('elapsedT').style.color = 'var(--green)';
+
+  } catch(err) {
+    console.error(err);
+    scard(2,'err','failed');
+    pnode('cdn','err','error');
+    vov.classList.add('gone');
+    document.getElementById('verr').classList.add('show');
+    document.getElementById('verrmsg').textContent = `${err.message || 'Stream load failed'}\n\nCheck console for details.`;
+    document.getElementById('fState').textContent = 'error';
+    addLog('ERR', err.message||'load failed', 0, null);
+    clearInterval(elTimer);
+  }
+
+  btn.disabled = false;
+}
+
+// ════════════════════════════════════════════════════════
+// ENTER KEY on login
+// ════════════════════════════════════════════════════════
+document.getElementById('upass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('uname').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('upass').focus();
+});
+</script>
+</body>
+</html>
