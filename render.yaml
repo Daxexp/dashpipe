@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: dashpipe
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SECRET
+        generateValue: true
+      - key: CDN_SECRET
+        generateValue: true
+    autoDeploy: true
